@@ -30,7 +30,8 @@ import Database.HDBC.Oracle.OCIFunctions (
 		sessionBegin, sessionEnd,
 		descriptorFree, getOCIErrorMsg,
 		bufferToString, bufferToCaltime,
-		bufferToByteString
+		bufferToByteString,
+		commitTrans
 	)
 import Database.HDBC.Oracle.OCIConstants (
 		oci_HTYPE_ERROR, oci_HTYPE_SERVER,
@@ -68,7 +69,7 @@ data OracleConnection = OracleConnection EnvHandle ErrorHandle ConnHandle
 
 instance IConnection OracleConnection where
 	disconnect = disconnectOracle
-	commit _ = fail "Not implemented"
+	commit (OracleConnection _ err conn) = commitTrans err conn
 	rollback _ = fail "Not implemented"
 	run _ _ _ = fail "Not implemented"
 	prepare = prepareOracle
