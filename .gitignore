@@ -5,3 +5,10 @@ cabal-dev
 *.chi
 *.chs.h
 .virthualenv
+
+# Takusen
+Takusen-0.8.7.tar.gz
+Takusen-0.8.7
+
+# Testing
+Test.hs
