@@ -6,7 +6,8 @@ import Control.Exception (evaluate, throw)
 #else
 import Control.Exception (evaluate, throwDyn)
 #endif
-import Data.Char(digitToInt, isDigit)
+import Data.Char(digitToInt, isDigit, toLower, isSpace)
+import Data.List (isPrefixOf)
 import Data.Maybe(isNothing)
 import System.Time(ClockTime(TOD), toClockTime)
 import Foreign.C.String(CString, peekCString)
@@ -133,12 +134,16 @@ prepareOracle oraconn@(OracleConnection env err conn) query = rethrowOCI err (do
 		return (statementFor oraconn stmtvar query)
 	)
 
-executeOracle :: OracleConnection -> MVar OracleStatement -> [SqlValue] -> IO Integer
-executeOracle (OracleConnection _ err conn) stmtvar bindvars = rethrowOCI err $ modifyMVar stmtvar exec
+executeOracle :: OracleConnection -> StmtType -> MVar OracleStatement -> [SqlValue] -> IO Integer
+executeOracle (OracleConnection _ err conn) stmttype stmtvar bindvars = rethrowOCI err $ modifyMVar stmtvar exec
 	where
+		iteration = case stmttype of
+			SelectType -> 0
+			CommandType -> 1
+		
 		exec stmt@(OracleStatement (Executed _) _) = return (stmt, 0)
 		exec (OracleStatement Prepared stmthandle) = do
-			stmtExecute err conn stmthandle 0
+			stmtExecute err conn stmthandle iteration
 			numColumns <- getNumColumns err stmthandle
 			convinfos <- flip mapM [1..numColumns] $ \col -> do
 				colHandle <- getParam err stmthandle col
@@ -229,8 +234,10 @@ instance FreeableHandle SessHandle where free = disposeHandle oci_HTYPE_SESSION
 instance FreeableHandle StmtHandle where free = disposeHandle oci_HTYPE_STMT
 instance FreeableHandle ParamHandle where free = disposeDescriptor
 
+data StmtType = SelectType | CommandType
+
 statementFor oraconn stmtvar query = Statement {
-	execute = executeOracle oraconn stmtvar,
+	execute = executeOracle oraconn (inferStmtType query) stmtvar,
 	executeMany = \_ -> fail "Not implemented",
 	finish = finishOracle stmtvar,
 	fetchRow = fetchOracleRow oraconn stmtvar,
@@ -238,3 +245,8 @@ statementFor oraconn stmtvar query = Statement {
 	getColumnNames = getOracleColumnNames oraconn stmtvar,
 	describeResult = fail "Not implemented"
 }
+	where
+		inferStmtType text = if beginsWithSelect text then SelectType else CommandType
+		
+		beginsWithSelect "" = False
+		beginsWithSelect text = isPrefixOf "select" . dropWhile isSpace . map toLower $ text
