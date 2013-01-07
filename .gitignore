@@ -10,5 +10,8 @@ cabal-dev
 Takusen-0.8.7.tar.gz
 Takusen-0.8.7
 
+# Installation
+oci.dll
+
 # Testing
 Test.hs
